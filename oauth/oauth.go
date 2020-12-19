@@ -68,30 +68,6 @@ func GetClientId(request *http.Request) int64 {
 	return clientId
 }
 
-func AuthenticateRequest(request *http.Request) (*access_token, *rest_errors.RestErr) {
-	if request == nil {
-		return nil, nil
-	}
-
-	cleanRequest(request)
-
-	// ex : api.bookstore.com/resource?access_token=xyz
-	accessToken := strings.TrimSpace(request.URL.Query().Get(paramAccessToken))
-	if accessToken == "" {
-		return nil, rest_errors.NewBadRequestError("invalid access token provided")
-	}
-
-	at, err := getAccessToken(accessToken)
-	if err != nil {
-		return nil, err
-	}
-
-	request.Header.Add(headerXCallerId, fmt.Sprint("%v", at.UserID))
-	request.Header.Add(headerXClientId, fmt.Sprint("%v", at.ClientID))
-
-	return at, nil
-}
-
 func cleanRequest(request *http.Request) {
 	if request == nil {
 		return
@@ -100,6 +76,31 @@ func cleanRequest(request *http.Request) {
 	request.Header.Del(headerXClientId)
 	request.Header.Del(headerXCallerId)
 }
+
+func AuthenticateRequest(request *http.Request) *rest_errors.RestErr {
+	if request == nil {
+		return nil
+	}
+
+	cleanRequest(request)
+
+	// ex : api.bookstore.com/resource?access_token=xyz
+	accessToken := strings.TrimSpace(request.URL.Query().Get(paramAccessToken))
+	if accessToken == "" {
+		return rest_errors.NewBadRequestError("invalid access token provided")
+	}
+
+	at, err := getAccessToken(accessToken)
+	if err != nil {
+		return err
+	}
+
+	request.Header.Add(headerXCallerId, fmt.Sprint("%v", at.UserID))
+	request.Header.Add(headerXClientId, fmt.Sprint("%v", at.ClientID))
+
+	return nil
+}
+
 func getAccessToken(accessTokenId string) (*access_token, *rest_errors.RestErr) {
 	response := oauthRestClient.Get(fmt.Sprintf("/oauth/access_token/%s", accessTokenId))
 
@@ -110,8 +111,7 @@ func getAccessToken(accessTokenId string) (*access_token, *rest_errors.RestErr) 
 	// error condition
 	if response.StatusCode > 299 {
 		var restErr rest_errors.RestErr
-		err := json.Unmarshal(response.Bytes(), &restErr)
-		if err != nil {
+		if err := json.Unmarshal(response.Bytes(), &restErr); err != nil {
 			return nil, rest_errors.NewInternalServerError("invalid error interface when trying to login user")
 		}
 		return nil, &restErr
