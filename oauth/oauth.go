@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -106,20 +107,20 @@ func getAccessToken(accessTokenId string) (*access_token, *rest_errors.RestErr) 
 
 	// timeout or no response
 	if response == nil || response.Response == nil {
-		return nil, rest_errors.NewInternalServerError("invalid rest client response when trying to login")
+		return nil, rest_errors.NewInternalServerError("invalid rest client response when trying to login", errors.New("network timeout"))
 	}
 	// error condition
 	if response.StatusCode > 299 {
 		var restErr rest_errors.RestErr
 		if err := json.Unmarshal(response.Bytes(), &restErr); err != nil {
-			return nil, rest_errors.NewInternalServerError("invalid error interface when trying to login user")
+			return nil, rest_errors.NewInternalServerError("invalid error interface when trying to login user", err)
 		}
 		return nil, &restErr
 	}
 
 	var accessToken access_token
 	if err := json.Unmarshal(response.Bytes(), &accessToken); err != nil {
-		return nil, rest_errors.NewInternalServerError("error when trying to unmarshal access token's response")
+		return nil, rest_errors.NewInternalServerError("error when trying to unmarshal access token's response", err)
 	}
 
 	return &accessToken, nil
